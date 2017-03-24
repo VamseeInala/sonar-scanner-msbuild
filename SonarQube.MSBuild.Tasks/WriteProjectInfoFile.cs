@@ -22,6 +22,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Xml;
 
 namespace SonarQube.MSBuild.Tasks
 {
@@ -48,6 +49,8 @@ namespace SonarQube.MSBuild.Tasks
         public string ProjectLanguage { get; set; }
 
         public string ProjectGuid { get; set; }
+
+        public string SolutionConfigurationContents { get; set; }
 
         public bool IsTest { get; set; }
 
@@ -79,8 +82,27 @@ namespace SonarQube.MSBuild.Tasks
             pi.FullPath = this.FullProjectPath;
             pi.ProjectLanguage = this.ProjectLanguage;
 
+            string guid = null;
+            if (!String.IsNullOrEmpty(this.ProjectGuid))
+            {
+                guid = this.ProjectGuid;
+            }
+            else if (!String.IsNullOrEmpty(this.SolutionConfigurationContents))
+            {
+                // Try to get GUID from the Solution
+                XmlDocument xmlDoc = new XmlDocument();
+                xmlDoc.LoadXml(this.SolutionConfigurationContents);
+                foreach (XmlNode xmlNode in xmlDoc.DocumentElement.ChildNodes)
+                {
+                    if (xmlNode.Name.Equals("ProjectConfiguration") && xmlNode.Attributes["AbsolutePath"].Value.Equals(this.FullProjectPath))
+                    {
+                        guid = xmlNode.Attributes["Project"].Value;
+                    }
+                }
+            }
+
             Guid projectId;
-            if (Guid.TryParse(this.ProjectGuid, out projectId))
+            if (guid != null && Guid.TryParse(guid, out projectId))
             {
                 pi.ProjectGuid = projectId;
                 pi.AnalysisResults = TryCreateAnalysisResults(this.AnalysisResults);
